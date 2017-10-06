@@ -12,6 +12,7 @@ class OlliesPlayer
     @history = []
     @hunting = true
     @current_state = Hash.new
+    @array_of_interest = []
   end
 
   def name
@@ -92,10 +93,9 @@ class OlliesPlayer
 
     update_history(state)
     state_to_hash(state)
-
-
-
     l_a_d_s = last_attempt_destroyed_ship(ships_remaining)
+
+    puts @array_of_interest
 
     if @hunting == true && @history.last == :hit
       @hunting = false
@@ -110,6 +110,7 @@ class OlliesPlayer
       return attempt
     elsif @hunting == false && l_a_d_s == false
       attempt = destroy_mode
+      @array_of_interest << @attempts.last
       @attempts << attempt
       return attempt
     elsif @hunting == false && l_a_d_s == true
@@ -127,9 +128,21 @@ class OlliesPlayer
   def hunt_mode
     cheq_arr = chequered_array
     coordinate = cheq_arr.sample
-
+    i = 0
     while state_of_coordinate(coordinate) != :unknown
       coordinate = cheq_arr.sample
+      if i > cheq_arr.length
+        return random_hunt_mode
+      end
+      i+=1
+    end
+    return coordinate
+  end
+
+  def random_hunt_mode
+    coordinate = coordinate_array.sample
+    while state_of_coordinate(coordinate) != :unknown
+      coordinate = coordinate_array.sample
     end
     return coordinate
   end
@@ -148,16 +161,42 @@ class OlliesPlayer
 
   def attack_direction
 
-
+    aa = attack_across
+    av = attack_vertical
 
     case @direction_of_ship
     when :across
-      attack_across
+      if !aa.empty?
+        return aa
+      elsif !av.empty?
+        return av
+      end
+
     when :vertical
-      attack_vertical
+      if !av.empty?
+        return av
+      elsif !aa.empty?
+        return aa
+      end
+
     end
 
   end
+
+  # def cycle_point_of_interest
+  #
+  #   i = 0
+  #   while i < @array_of_interest.length
+  #     @point_of_interest = @array_of_interest[i]
+  #     if !av.empty?
+  #       return av
+  #     elsif !aa.empty?
+  #       return aa
+  #     end
+  #     i+= 1
+  #   end
+  #   return hunt_mode
+  # end
 
   def attack_across
 
@@ -224,17 +263,14 @@ class OlliesPlayer
   end
 
   def loop_back_left(left)
-    puts "loop left"
+
     while true
       if valid_coord(left) == false
-        puts "exiting loop left with []"
         return []
       end
       if state_of_coordinate(left) == :miss
-        puts "exiting loop left with []"
         return []
       elsif state_of_coordinate(left) == :unknown
-        puts "exiting loop left with left"
         return left
       else
         left[0] -= 1
@@ -287,6 +323,7 @@ class OlliesPlayer
     if !lbd.empty?
       return lbd
     end
+
 
     attack_across
 
