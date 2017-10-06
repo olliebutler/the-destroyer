@@ -11,6 +11,7 @@ class OlliesPlayer
     @previous_state = []
     @history = []
     @hunting = true
+    @current_state = Hash.new
   end
 
   def name
@@ -50,21 +51,51 @@ class OlliesPlayer
       end
     end
   end
-
   return arr
   end
 
+  def coordinate_array
+    arr = []
+    0.upto(9).each do |x|
+      0.upto(9).each do |y|
+        arr << [y,x]
+      end
+    end
+    return arr
+  end
 
+  def state_to_array(state)
+    arr = []
+    state.each do |l|
+      l.each do |m|
+        arr << m
+      end
+    end
+  return arr
+  end
 
-  def repeated_attempt(coordinate)
-    @attempts.include?(coordinate)
+  def state_to_hash(state)
+
+    state_array = state_to_array(state)
+    coord_array = coordinate_array
+
+    h = Hash.new
+
+    coord_array.each_with_index do |v,i|
+      h[v] = state_array[i]
+    end
+
+    @current_state = h
   end
 
   def take_turn(state, ships_remaining)
 
     update_history(state)
+    state_to_hash(state)
 
 
+
+    l_a_d_s = last_attempt_destroyed_ship(ships_remaining)
 
     if @hunting == true && @history.last == :hit
       @hunting = false
@@ -77,11 +108,11 @@ class OlliesPlayer
       attempt = hunt_mode
       @attempts << attempt
       return attempt
-    elsif @hunting == false && last_attempt_destroyed_ship(ships_remaining) == false
+    elsif @hunting == false && l_a_d_s == false
       attempt = destroy_mode
       @attempts << attempt
       return attempt
-    elsif @hunting == false && last_attempt_destroyed_ship(ships_remaining) == true
+    elsif @hunting == false && l_a_d_s == true
       @hunting = true
       @point_of_interest = []
       @direction_of_ship = :unknown
@@ -92,11 +123,302 @@ class OlliesPlayer
 
   end
 
+
+  def hunt_mode
+    cheq_arr = chequered_array
+    coordinate = cheq_arr.sample
+
+    while state_of_coordinate(coordinate) != :unknown
+      coordinate = cheq_arr.sample
+    end
+    return coordinate
+  end
+
+  def destroy_mode
+
+    analyse_boat_direction
+
+    if @direction_of_ship == :unknown
+      return find_boat_direction
+    else
+      return attack_direction
+    end
+
+  end
+
+  def attack_direction
+
+
+
+    case @direction_of_ship
+    when :across
+      attack_across
+    when :vertical
+      attack_vertical
+    end
+
+  end
+
+  def attack_across
+
+    surrounding = surrounding_coords(@point_of_interest)
+    left = surrounding[3]
+    right = surrounding[1]
+
+    #check if can attack coordinate to left of point of interest
+
+    al = attack_left(left)
+
+    if !al.empty?
+
+      return al
+    end
+
+    #ceck if can loop back left
+
+    lbl = loop_back_left(left)
+
+    if !lbl.empty?
+
+      return lbl
+    end
+
+
+    #check if can attack right of point of interest
+
+    ar = attack_right(right)
+
+    if !ar.empty?
+
+      return ar
+    end
+
+
+    #check if can loop back right
+
+    lbr = loop_back_right(right)
+
+    if !lbr.empty?
+
+      return lbr
+    end
+
+    attack_vertical
+
+  end
+
+  def attack_left(left)
+    if state_of_coordinate(left) == :unknown
+      return left
+    else
+      return []
+    end
+  end
+
+  def attack_right(right)
+    if state_of_coordinate(right) == :unknown
+      return right
+    else
+      return []
+    end
+  end
+
+  def loop_back_left(left)
+    puts "loop left"
+    while true
+      if valid_coord(left) == false
+        puts "exiting loop left with []"
+        return []
+      end
+      if state_of_coordinate(left) == :miss
+        puts "exiting loop left with []"
+        return []
+      elsif state_of_coordinate(left) == :unknown
+        puts "exiting loop left with left"
+        return left
+      else
+        left[0] -= 1
+      end
+    end
+  end
+
+  def loop_back_right(right)
+    puts "loop right"
+    while true
+      if valid_coord(right) == false
+        return []
+      end
+      if state_of_coordinate(right) == :miss
+        return []
+      elsif state_of_coordinate(right) == :unknown
+        return right
+      else
+        right[0] += 1
+      end
+    end
+  end
+
+
+  def attack_vertical
+    surrounding = surrounding_coords(@point_of_interest)
+    up = surrounding[0]
+    down = surrounding[2]
+
+    au = attack_up(up)
+
+    if !au.empty?
+      return au
+    end
+
+    lbu = loop_back_up(up)
+
+    if !lbu.empty?
+      return lbu
+    end
+
+    ad = attack_down(down)
+
+    if !ad.empty?
+      return ad
+    end
+
+    lbd = loop_back_down(down)
+
+    if !lbd.empty?
+      return lbd
+    end
+
+    attack_across
+
+  end
+
+  def attack_down(down)
+    if state_of_coordinate(down) == :unknown
+      return down
+    else
+      return []
+    end
+  end
+
+  def attack_up(up)
+    if state_of_coordinate(up) == :unknown
+      return up
+    else
+      return []
+    end
+  end
+
+  def loop_back_up(up)
+
+    puts "loop up"
+
+    while true
+      puts up
+      if valid_coord(up) == false
+        return []
+      end
+      if state_of_coordinate(up) == :miss
+        return []
+      elsif state_of_coordinate(up) == :unknown
+        return up
+      else
+        up[1] -= 1 #was +
+      end
+
+    end
+  end
+
+  def loop_back_down(down)
+    puts "loop down"
+    while true
+
+      if valid_coord(down) == false
+        return []
+      end
+      if state_of_coordinate(down) == :miss
+        return []
+      elsif state_of_coordinate(down) == :unknown
+        return down
+      else
+        down[1] += 1 #was -
+      end
+    end
+  end
+
+
+  #########################################  Boat direction
+
+  def analyse_boat_direction
+    surroundings = surrounding_coords(@point_of_interest)
+
+
+    #left or right
+    if state_of_coordinate(surroundings[1]) == :hit || state_of_coordinate(surroundings[3]) == :hit
+      @direction_of_ship = :across
+    end
+    #up or down
+    if state_of_coordinate(surroundings[2]) == :hit || state_of_coordinate(surroundings[0]) == :hit
+      @direction_of_ship = :vertical
+    end
+
+  end
+
+  def find_boat_direction
+
+    surrounding_coords = surrounding_coords(@point_of_interest)
+    surrounding_coords.each do |x|
+
+      if valid_coord(x) && (state_of_coordinate(x) == :unknown)
+        return x
+      end
+    end
+
+  end
+
+  def surrounding_coords(coord)
+
+
+    up = []
+    up[0] = coord[0]
+    up[1] = coord[1]-1
+
+    down = []
+    down[0] = coord[0]
+    down[1] = coord[1]+1
+
+    right = []
+    right[0] = coord[0]+1
+    right[1] = coord[1]
+
+    left = []
+    left[0] = coord[0]-1
+    left[1] = coord[1]
+
+    [up,right,down,left]
+  end
+
+  ############################################ HASH stuff and stuff that runs every go
+
+  def state_of_coordinate(coord)
+    @current_state[coord]
+  end
+
+  def was_hit(coord)
+
+    if @current_state == :hit
+      return true
+    else
+      return false
+    end
+  end
+
   def last_attempt_destroyed_ship(ships_remaining)
     if @previous_ships_remaining == ships_remaining.length
+
       return false
     else
       @previous_ships_remaining = ships_remaining.length
+
       return true
     end
   end
@@ -131,252 +453,13 @@ class OlliesPlayer
     return counts[:miss]
   end
 
-  def hunt_mode
-    cheq_arr = chequered_array
-    coordinate = cheq_arr.sample
-
-    while repeated_attempt(coordinate)
-      coordinate = cheq_arr.sample
-    end
-    return coordinate
-  end
-
-  def destroy_mode
-
-    analyse_boat_direction
-
-    if @direction_of_ship == :unknown
-      return find_boat_direction
-    else
-      puts "attacking direction - #{@direction_of_ship}"
-      return attack_direction
-    end
-
-  end
-
-  def attack_direction
-
-    case @direction_of_ship
-    when :across
-      attack_across
-    when :vertical
-      attack_vertical
-    end
-
-  end
-
-  def attack_across
-
-    surrounding = surrounding_coords(@point_of_interest)
-    left = surrounding[3]
-    right = surrounding[1]
-
-    cal = can_attack_left(left)
-
-    if !cal.empty?
-      return cal
-    end
-
-    car = can_attack_right(right)
-
-    if !car.empty?
-      return car
-    end
-
-    # if can_attack_left(left)
-    #   surrounding = surrounding_coords(@point_of_interest)
-    #   left = surrounding[3]
-    #   return attack_left(left)
-    # end
-
-    # if can_attack_right(right)
-    #   surrounding = surrounding_coords(@point_of_interest)
-    #   right = surrounding[1]
-    #   return attack_right(right)
-    # end
-
-    attack_vertical
-
-  end
-
-  #  def attack_left(left)
-  #    while was_attempt_hit(left)
-  #      left[0] -= 1
-  #    end
-  #    return left
-  #  end
-
-  def can_attack_left(left)
-    while was_attempt_hit(left)
-      left[0] -= 1
-    end
-
-    if !has_coordinate_been_attempted(left)
-    # return "left" to take turn
-      return left
-    else
-      return []
-    end
-  end
-
-  def can_attack_right(right)
-    while was_attempt_hit(right)
-      right[0] += 1
-    end
-    if !has_coordinate_been_attempted(right)
-      return right
-    else
-      return []
-    end
-  end
-
-  # def attack_right(right)
-  #   while was_attempt_hit(right)
-  #     left[0] += 1
-  #   end
-  #   return right
-  # end
-
-  def attack_vertical
-    surrounding = surrounding_coords(@point_of_interest)
-    up = surrounding[0]
-    down = surrounding[2]
-
-    if can_attack_up(up)
-      surrounding = surrounding_coords(@point_of_interest)
-      up = surrounding[0]
-      return attack_up(up)
-    end
-
-    if can_attack_down(down)
-      surrounding = surrounding_coords(@point_of_interest)
-      down = surrounding[2]
-      return attack_down(down)
-    end
-  end
-
-  def can_attack_up(up)
-    while was_attempt_hit(up)
-      up[1] += 1
-      end
-
-    if !has_coordinate_been_attempted(up)
-      return true
-    else
-      return false
-    end
-  end
-
-  def attack_up(up)
-    while was_attempt_hit(up)
-      up[1] += 1
-    end
-    return up
-  end
-
-  def can_attack_down(down)
-    while was_attempt_hit(down)
-      down[1] -= 1
-      end
-
-    if !has_coordinate_been_attempted(down)
-      return true
-    else
-      return false
-    end
-  end
-
-  def attack_down(down)
-    while was_attempt_hit(down)
-      down[1] -= 1
-    end
-    return down
-  end
-
-  def analyse_boat_direction
-    surroundings = surrounding_coords(@point_of_interest)
-
-    #right
-    if was_attempt_hit(surroundings[1])
-      @direction_of_ship = :across
-    end
-    #down
-    if was_attempt_hit(surroundings[2])
-      @direction_of_ship = :vertical
-    end
-    #left
-    if was_attempt_hit(surroundings[3])
-      @direction_of_ship = :across
-    end
-    #up
-    if was_attempt_hit(surroundings[0])
-      @direction_of_ship = :vertical
-    end
-
-  end
-
-  def has_coordinate_been_attempted(coord)
-
-    if @attempts.include?(coord)
-      return true
-    else
-      return false
-    end
-
-  end
-
-  def was_attempt_hit(coord)
-    if has_coordinate_been_attempted(coord)
-      index = @attempts.find_index(coord)
-      result = @history[index]
-      if result == :hit
+  def valid_coord(coord)
+    if coord[0] < 10 && coord[1] < 10
+      if coord[0] >= 0 && coord[1] >= 0
         return true
       else
         return false
       end
-    else
-      return false
-    end
-  end
-
-
-  def find_boat_direction
-
-    surrounding_coords = surrounding_coords(@point_of_interest)
-    surrounding_coords.each do |x|
-
-      if valid_coord(x) && (has_coordinate_been_attempted(x) == false)
-        return x
-      end
-    end
-
-  end
-
-
-  def surrounding_coords(coord)
-    puts "finding surroundings for #{coord}"
-    up = []
-    up[0] = coord[0]
-    up[1] = coord[1]+1
-    puts "found up - #{up}"
-    down = []
-    down[0] = coord[0]
-    down[1] = coord[1]-1
-    puts "found down - #{down}"
-    right = []
-    right[0] = coord[0]+1
-    right[1] = coord[1]
-    puts "found right - #{right}"
-    left = []
-    left[0] = coord[0]-1
-    left[1] = coord[1]
-    puts "found left - #{left}"
-    [up,right,down,left]
-  end
-
-  def valid_coord(coord)
-    if coord[0] < 10 && coord[1] < 10
-      return true
     else
       false
     end
