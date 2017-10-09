@@ -12,8 +12,8 @@ class LessNaivePlayer
       [0, 5, 5, :down],
       [1, 5, 4, :down],
       [2, 5, 3, :down],
-      [3, 5, 3, :down],
-      [4, 5, 2, :down]
+      [6, 5, 3, :down],
+      [8, 5, 2, :down]
     ]
   end
 

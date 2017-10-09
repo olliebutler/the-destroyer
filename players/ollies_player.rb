@@ -1,11 +1,8 @@
 class OlliesPlayer
   def initialize
-    @starting_used = []
     @attempts = []
-    @coords_hit = []
     @previous_hits = 0
     @previous_ships_remaining = 5
-    @hits_coordinates = []
     @point_of_interest = []
     @direction_of_ship = :unknown
     @previous_state = []
@@ -13,6 +10,9 @@ class OlliesPlayer
     @hunting = true
     @current_state = Hash.new
     @array_of_interest = []
+    @size_of_ships = Hash.new
+    @previous_size_of_ships = Hash.new
+
   end
 
   def name
@@ -20,18 +20,14 @@ class OlliesPlayer
   end
 
   def new_game
-  # @starting_used = []
-  # positions = []
-  # ship_sizes = [5,4,3,3,2]
-  # ship_sizes.each { |size|  positions << calculate_valid_start_position(size)}
-  # puts positions
+
 
   positions = [
-    [0, 0, 5, :across],
-    [0, 1, 4, :across],
-    [0, 2, 3, :across],
-    [0, 3, 3, :across],
-    [0, 4, 2, :across]
+    [1, 3, 5, :down],
+    [3, 6, 4, :across],
+    [2, 1, 3, :down],
+    [2, 5, 3, :down],
+    [6, 4, 2, :across]
     ]
 
   return positions
@@ -85,7 +81,7 @@ class OlliesPlayer
     coord_array.each_with_index do |v,i|
       h[v] = state_array[i]
     end
-
+    @current_state.clear
     @current_state = h
   end
 
@@ -93,37 +89,122 @@ class OlliesPlayer
 
     update_history(state)
     state_to_hash(state)
-    l_a_d_s = last_attempt_destroyed_ship(ships_remaining)
 
-    puts @array_of_interest
 
-    if @hunting == true && @history.last == :hit
-      @hunting = false
-      @point_of_interest = @attempts.last
-      @direction_of_ship = :unknown
-      attempt = destroy_mode
-      @attempts << attempt
-      return attempt
-    elsif @hunting == true && @history.last == :miss
-      attempt = hunt_mode
-      @attempts << attempt
-      return attempt
-    elsif @hunting == false && l_a_d_s == false
-      attempt = destroy_mode
-      @array_of_interest << @attempts.last
-      @attempts << attempt
-      return attempt
-    elsif @hunting == false && l_a_d_s == true
-      @hunting = true
-      @point_of_interest = []
-      @direction_of_ship = :unknown
-      attempt = hunt_mode
-      @attempts << attempt
-      return attempt
+
+    case last_attempt_destroyed_ship(ships_remaining)
+    when true
+      size_of_kill = calculate_size_of_last_kill(ships_remaining)
+      dead_coordinates = calculate_coordinates_of_last_kill(size_of_kill,@point_of_interest,@attempts.last)
+      @array_of_interest = @array_of_interest - dead_coordinates
+      if @array_of_interest.size > 0 #if we still have poi's
+        @point_of_interest = @array_of_interest.sample
+      else
+        @hunting = true
+      end
+
+      case @hunting
+      when true
+        attempt = hunt_mode
+        @attempts << attempt
+        return attempt
+      when false
+        attempt = destroy_mode
+        @attempts << attempt
+        return attempt
+      end
+
+    when false
+
+      case @hunting
+      when true
+        if @history.last == :hit
+          @hunting = false
+          @point_of_interest = @attempts.last
+          @direction_of_ship = :unknown
+          attempt = destroy_mode
+          @attempts << attempt
+          return attempt
+        else
+          attempt = hunt_mode
+          @attempts << attempt
+          return attempt
+        end
+      when false
+        attempt = destroy_mode
+        @attempts << attempt
+        return attempt
+      end
+
     end
 
   end
 
+  def calculate_coordinates_of_last_kill(size,poi,last_hit)
+
+    direction = calculate_kill_direction(poi, last_hit)
+
+    case direction
+    when :up
+      arr = []
+      0.upto(size-1).to_a.each do |i|
+        arr[i] = [last_hit[0], last_hit[1] + i]
+      end
+      return arr
+    when :down
+      arr = []
+      0.upto(size-1).to_a.each do |i|
+        arr[i] = [last_hit[0],last_hit[1] - i]
+      end
+      return arr
+    when :left
+      arr = []
+      0.upto(size-1).to_a.each do |i|
+        arr[i] = [last_hit[0] - i, last_hit[1]]
+      end
+      return arr
+    when :right
+      arr = []
+      0.upto(size-1).to_a.each do |i|
+        arr[i] = [last_hit[0] + i, last_hit[1]]
+      end
+      return arr
+    end
+
+    return arr
+
+  end
+
+  def calculate_kill_direction(poi, last_hit)
+
+    if poi[1] == last_hit[1]
+      last_hit[0] - poi[0] < 0 ? :left : :right
+    else
+      last_hit[1] - poi[1] < 0 ? :up : :down
+    end
+  end
+
+  def calculate_size_of_last_kill(ships_remaining)
+    size_ships_remaining = count_ships(ships_remaining)
+    size_ships_remaining.each do |k,v|
+      if size_ships_remaining[k] != @previous_size_of_ships[k]
+        return k
+      end
+    end
+  end
+
+  def count_ships(ships)
+
+
+    h = Hash.new
+    h = {5 => 0, 4 => 0, 3 => 0, 2 => 0}
+    ships.each do |s|
+        h[s] += 1
+      end
+
+    return h
+
+  end
 
   def hunt_mode
     cheq_arr = chequered_array
@@ -164,39 +245,48 @@ class OlliesPlayer
     aa = attack_across
     av = attack_vertical
 
+    # case @direction_of_ship
+    # when :across
+    #   if !aa.empty?
+    #     return aa
+    #   elsif !av.empty?
+    #     return av
+    #   end
+    #
+    # when :vertical
+    #   if !av.empty?
+    #     return av
+    #   elsif !aa.empty?
+    #     return aa
+    #   end
+    # end
+
     case @direction_of_ship
     when :across
-      if !aa.empty?
+      if !Array(aa).empty?
         return aa
-      elsif !av.empty?
+      elsif !Array(av).empty?
         return av
       end
 
     when :vertical
-      if !av.empty?
+      if !Array(av).empty?
         return av
-      elsif !aa.empty?
+      elsif !Array(aa).empty?
         return aa
       end
-
     end
 
-  end
+    @array_of_interest = @array_of_interest - [@point_of_interest]
+    if @array_of_interest.size > 0
+      @point_of_interest = @array_of_interest.sample
+      destroy_mode
+    else
+      hunt_mode
+    end
 
-  # def cycle_point_of_interest
-  #
-  #   i = 0
-  #   while i < @array_of_interest.length
-  #     @point_of_interest = @array_of_interest[i]
-  #     if !av.empty?
-  #       return av
-  #     elsif !aa.empty?
-  #       return aa
-  #     end
-  #     i+= 1
-  #   end
-  #   return hunt_mode
-  # end
+
+  end
 
   def attack_across
 
@@ -242,7 +332,9 @@ class OlliesPlayer
       return lbr
     end
 
-    attack_vertical
+    return []
+    #attack_vertical
+
 
   end
 
@@ -279,7 +371,7 @@ class OlliesPlayer
   end
 
   def loop_back_right(right)
-    puts "loop right"
+
     while true
       if valid_coord(right) == false
         return []
@@ -324,8 +416,9 @@ class OlliesPlayer
       return lbd
     end
 
+    return []
+    #attack_across
 
-    attack_across
 
   end
 
@@ -347,10 +440,8 @@ class OlliesPlayer
 
   def loop_back_up(up)
 
-    puts "loop up"
 
     while true
-      puts up
       if valid_coord(up) == false
         return []
       end
@@ -366,7 +457,7 @@ class OlliesPlayer
   end
 
   def loop_back_down(down)
-    puts "loop down"
+
     while true
 
       if valid_coord(down) == false
@@ -464,8 +555,9 @@ class OlliesPlayer
     if count_hits(state) == count_hits(@previous_state)
       @history << :miss
     else
+
       @history << :hit
-      @hits_coordinates << @attempts.last
+      @array_of_interest << @attempts.last
     end
     @previous_state = state
   end
