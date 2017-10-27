@@ -1,3 +1,9 @@
+
+My Player
+--------
+
+My implimentation of a battleships player for the game defined below. My payer will randomly attack in a checkerboard pattern until an initial hit has been made then will attack the surrounding area until the direction of the ship can be deduce. After finding the dirction it will follow the ship until it has been sunk and then loop back and attack and other ships it may have hit while destorying the first ship. 
+
 Battleship
 ==========
 
